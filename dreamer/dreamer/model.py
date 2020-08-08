@@ -3,6 +3,8 @@ from PIL import Image
 import numpy as np
 import tensorflow as tf
 
+IMG_JITTER = 32
+
 
 def get_dreamer_model() -> tf.keras.Model:
     base_model = tf.keras.applications.InceptionV3(
@@ -47,6 +49,10 @@ class Dreamer(tf.Module):
         return img
 
     def _step(self, img: tf.Tensor, step_size: tf.Tensor) -> tf.Tensor:
+        # Shift/offset image by random jitter
+        x_shift, y_shift = np.random.randint(-IMG_JITTER, IMG_JITTER + 1, 2)
+        img = tf.roll(tf.roll(img, x_shift, axis=1), y_shift, axis=0)
+
         loss = tf.constant(0.0)
         with tf.GradientTape() as tape:
             tape.watch(img)
@@ -56,6 +62,8 @@ class Dreamer(tf.Module):
         gradients /= tf.math.reduce_std(gradients) + 1e-8
 
         img = img + gradients * step_size
+        # Reverse image shift
+        img = tf.roll(tf.roll(img, -x_shift, axis=1), -y_shift, axis=0)
         return tf.clip_by_value(img, -1, 1)
 
 
