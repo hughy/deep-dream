@@ -6,6 +6,8 @@ authors = ["Hugh Cunningham <hugh.e.cunningham@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.8"
+tensorflow = "^2.3.0"
+pillow = "^7.2.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
