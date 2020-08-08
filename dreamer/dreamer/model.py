@@ -39,7 +39,9 @@ class Dreamer(tf.Module):
             tf.TensorSpec(shape=[], dtype=tf.float32),
         )
     )
-    def __call__(self, img: tf.Tensor, steps: tf.Tensor, step_size: tf.Tensor) -> tf.Tensor:
+    def __call__(
+        self, img: tf.TensorSpec, steps: tf.TensorSpec, step_size: tf.TensorSpec
+    ) -> tf.Tensor:
         for _ in range(steps):
             img = self._step(img, step_size)
         return img
@@ -57,7 +59,8 @@ class Dreamer(tf.Module):
         return tf.clip_by_value(img, -1, 1)
 
 
-def preprocess_image(img: Image) -> tf.Tensor:
+def preprocess_image(img: Image, max_size: int = 512) -> tf.Tensor:
+    img.thumbnail((max_size, max_size))
     img = np.array(img)
     img = tf.keras.applications.inception_v3.preprocess_input(img)
     return tf.convert_to_tensor(img)
@@ -72,7 +75,7 @@ if __name__ == "__main__":
     model = get_dreamer_model()
     dreamer = Dreamer(model)
 
-    img = Image.open("images/cat0.jpg")
+    img = Image.open("images/cat2.jpg")
     img = preprocess_image(img)
 
     output_img = dreamer(img, tf.constant(100), tf.constant(0.01))
