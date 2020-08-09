@@ -4,6 +4,7 @@ import numpy as np
 import tensorflow as tf
 
 IMG_JITTER = 32
+OCTAVE_SCALE = 1.3
 
 
 def get_dreamer_model() -> tf.keras.Model:
@@ -59,6 +60,7 @@ class Dreamer(tf.Module):
             loss = activation_loss(img, self.model)
 
         gradients = tape.gradient(loss, img)
+        # Normalize gradient steps
         gradients /= tf.math.reduce_std(gradients) + 1e-8
 
         img = img + gradients * step_size
@@ -75,18 +77,33 @@ def preprocess_image(img: Image, max_size: int = 512) -> tf.Tensor:
 
 
 def deprocess_image(img: tf.Tensor) -> Image:
+    """Reverses normalization of pixel values from image preprocessing.
+    """
     img = 255 * (img + 1.0) / 2.0
-    return tf.cast(img, tf.uint8)
+    img = tf.cast(img, tf.uint8)
+    img = img.numpy()
+    return Image.fromarray(img)
 
 
-if __name__ == "__main__":
+def dream() -> None:
     model = get_dreamer_model()
     dreamer = Dreamer(model)
 
     img = Image.open("images/cat2.jpg")
     img = preprocess_image(img)
 
-    output_img = dreamer(img, tf.constant(100), tf.constant(0.01))
-    output_img = deprocess_image(output_img)
-    output_img = Image.fromarray(np.array(output_img))
-    output_img.show()
+    img_shape = tf.shape(img)[:-1]
+    img_shape_float = tf.cast(img_shape, tf.float32)
+    for n in range(-2, 3):
+        octave_shape = tf.cast(img_shape_float * (OCTAVE_SCALE**n), tf.int32)
+        img = tf.image.resize(img, octave_shape).numpy()
+        img = dreamer(img, tf.constant(25), tf.constant(0.01))
+
+    # Resize to original preprocessed image shape
+    img = tf.image.resize(img, img_shape)
+    img = deprocess_image(img)
+    img.show()
+
+
+if __name__ == "__main__":
+    dream()
