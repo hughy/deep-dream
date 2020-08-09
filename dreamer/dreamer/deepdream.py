@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 import argparse
+from typing import Tuple
 
 from PIL import Image
 import numpy as np
 import tensorflow as tf
 
-IMG_JITTER = 64
-OCTAVE_SCALE = 1.3
+IMG_JITTER = 128
+OCTAVE_SCALE = 1.4
 
 
 def get_deep_dream_model() -> tf.keras.Model:
@@ -14,7 +15,7 @@ def get_deep_dream_model() -> tf.keras.Model:
         include_top=False, weights="imagenet"
     )
     layers = [
-        base_model.get_layer(layer_name).output for layer_name in ("mixed3", "mixed5")
+        base_model.get_layer(layer_name).output for layer_name in ("mixed3", "mixed7")
     ]
     return tf.keras.Model(inputs=base_model.input, outputs=layers)
 
@@ -75,6 +76,20 @@ class DeepDream(tf.Module):
         return tf.clip_by_value(img, -1, 1)
 
 
+def get_random_image(shape: Tuple[int, int]) -> Image:
+    """Generates an image of the given shape from random noise.
+    """
+    width, height = shape
+    img_array = np.random.randint(0, 256, (width, height, 3), dtype='uint8')
+    return Image.fromarray(img_array)
+
+
+def get_image(image_filepath: str) -> Image:
+    if image_filepath == "random":
+        return get_random_image((512, 512))
+    return Image.open(image_filepath)
+
+
 def preprocess_image(input_img: Image, max_size: int = 512) -> tf.Tensor:
     input_img.thumbnail((max_size, max_size))
     img_array = np.array(input_img)
@@ -94,7 +109,7 @@ def dream(image_filepath: str) -> Image:
     model = get_deep_dream_model()
     dreamer = DeepDream(model)
 
-    input_img = Image.open(image_filepath)
+    input_img = get_image(image_filepath)
     img = preprocess_image(input_img)
 
     img_shape = tf.shape(img)[:-1]
@@ -103,7 +118,7 @@ def dream(image_filepath: str) -> Image:
     for i in range(-2, 3):
         octave_shape = tf.cast(img_shape_float * (OCTAVE_SCALE ** i), tf.int32)
         img = tf.image.resize(img, octave_shape).numpy()
-        img = dreamer(img, tf.constant(25), tf.constant(0.01))
+        img = dreamer(img, tf.constant(100), tf.constant(0.01))
 
     # Resize to original preprocessed image shape
     img = tf.image.resize(img, img_shape)
@@ -118,11 +133,19 @@ if __name__ == "__main__":
     """.strip()
     )
     parser.add_argument(
+        "-i",
         "--image-filepath",
         type=str,
         help="Filepath for an input image.",
         default="images/cat.jpg",
     )
+    parser.add_argument(
+        "-o",
+        "--output-filepath",
+        type=str,
+        help="Filepath to save the output image to.",
+        default="images/dream.png",
+    )
     args = parser.parse_args()
     output_img = dream(args.image_filepath)
-    output_img.save("images/dream.png")
+    output_img.save(args.output_filepath)
