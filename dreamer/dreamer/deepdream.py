@@ -49,6 +49,12 @@ class DeepDream(tf.Module):
             img = self._step(img, step_size)
         return img
 
+    @tf.function(
+        input_signature=(
+            tf.TensorSpec(shape=[None, None, 3], dtype=tf.float32),
+            tf.TensorSpec(shape=[], dtype=tf.float32),
+        )
+    )
     def _step(self, img, step_size) -> tf.Tensor:
         # Shift/offset image by random jitter
         x_shift, y_shift = np.random.randint(-IMG_JITTER, IMG_JITTER + 1, 2)
@@ -93,8 +99,9 @@ def dream(image_filepath: str) -> Image:
 
     img_shape = tf.shape(img)[:-1]
     img_shape_float = tf.cast(img_shape, tf.float32)
-    for n in range(-2, 3):
-        octave_shape = tf.cast(img_shape_float * (OCTAVE_SCALE ** n), tf.int32)
+    # Iterate over five 'octaves'
+    for i in range(-2, 3):
+        octave_shape = tf.cast(img_shape_float * (OCTAVE_SCALE ** i), tf.int32)
         img = tf.image.resize(img, octave_shape).numpy()
         img = dreamer(img, tf.constant(25), tf.constant(0.01))
 
