@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import argparse
+import math
 from typing import Tuple
 
 from PIL import Image
@@ -7,7 +8,6 @@ import numpy as np
 import tensorflow as tf
 
 IMG_JITTER = 128
-OCTAVE_SCALE = 1.4
 
 
 def get_deep_dream_model() -> tf.keras.Model:
@@ -15,7 +15,7 @@ def get_deep_dream_model() -> tf.keras.Model:
         include_top=False, weights="imagenet"
     )
     layers = [
-        base_model.get_layer(layer_name).output for layer_name in ("mixed3", "mixed7")
+        base_model.get_layer(layer_name).output for layer_name in ("mixed2", "mixed9")
     ]
     return tf.keras.Model(inputs=base_model.input, outputs=layers)
 
@@ -80,7 +80,7 @@ def get_random_image(shape: Tuple[int, int]) -> Image:
     """Generates an image of the given shape from random noise.
     """
     width, height = shape
-    img_array = np.random.randint(0, 256, (width, height, 3), dtype='uint8')
+    img_array = np.random.randint(0, 256, (width, height, 3), dtype="uint8")
     return Image.fromarray(img_array)
 
 
@@ -105,20 +105,21 @@ def deprocess_image(img: tf.Tensor) -> Image:
     return Image.fromarray(img.numpy())
 
 
-def dream(image_filepath: str) -> Image:
+def dream(
+    image_filepath: str, octaves: int, octave_scale: float, steps: int, step_size: float
+) -> Image:
     model = get_deep_dream_model()
     dreamer = DeepDream(model)
 
     input_img = get_image(image_filepath)
     img = preprocess_image(input_img)
-
     img_shape = tf.shape(img)[:-1]
     img_shape_float = tf.cast(img_shape, tf.float32)
-    # Iterate over five 'octaves'
-    for i in range(-2, 3):
-        octave_shape = tf.cast(img_shape_float * (OCTAVE_SCALE ** i), tf.int32)
+    octave_range = range(-math.floor(octaves / 2), math.ceil(octaves / 2))
+    for i in octave_range:
+        octave_shape = tf.cast(img_shape_float * (octave_scale ** i), tf.int32)
         img = tf.image.resize(img, octave_shape).numpy()
-        img = dreamer(img, tf.constant(100), tf.constant(0.01))
+        img = dreamer(img, tf.constant(steps), tf.constant(step_size))
 
     # Resize to original preprocessed image shape
     img = tf.image.resize(img, img_shape)
@@ -136,8 +137,8 @@ if __name__ == "__main__":
         "-i",
         "--image-filepath",
         type=str,
-        help="Filepath for an input image.",
-        default="images/cat.jpg",
+        default="random",
+        help="Filepath for an input image. Uses random noise by default.",
     )
     parser.add_argument(
         "-o",
@@ -146,6 +147,32 @@ if __name__ == "__main__":
         help="Filepath to save the output image to.",
         default="images/dream.png",
     )
+    parser.add_argument(
+        "--octaves",
+        type=int,
+        default=5,
+        help="Number of 'octaves' or image scales to use in generating output image.",
+    )
+    parser.add_argument(
+        "--octave-scale",
+        type=float,
+        default=1.3,
+        help="Value to scale each 'octave' image by.",
+    )
+    parser.add_argument(
+        "--steps",
+        type=int,
+        default=25,
+        help="Number of steps or iterations to use for each image 'octave'.",
+    )
+    parser.add_argument(
+        "--step-size",
+        type=float,
+        default=0.01,
+        help="Value to scale each step change by during image generation.",
+    )
     args = parser.parse_args()
-    output_img = dream(args.image_filepath)
+    output_img = dream(
+        args.image_filepath, args.octaves, args.octave_scale, args.steps, args.step_size
+    )
     output_img.save(args.output_filepath)
