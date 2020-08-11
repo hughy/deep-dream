@@ -1,21 +1,26 @@
 #!/usr/bin/env python
 import argparse
 import math
+from typing import List
 from typing import Tuple
 
 from PIL import Image
 import numpy as np
 import tensorflow as tf
 
-IMG_JITTER = 128
+IMG_JITTER = 32
+VALID_OUTPUT_LAYERS = frozenset(f"mixed{i}" for i in range(11))
 
 
-def get_deep_dream_model() -> tf.keras.Model:
+def get_deep_dream_model(output_layers: List[str]) -> tf.keras.Model:
+    if not all(l in VALID_OUTPUT_LAYERS for l in output_layers):
+        raise ValueError(f"Valid output layers for InceptionV3 are {VALID_OUTPUT_LAYERS}")
+
     base_model = tf.keras.applications.InceptionV3(
         include_top=False, weights="imagenet"
     )
     layers = [
-        base_model.get_layer(layer_name).output for layer_name in ("mixed2", "mixed9")
+        base_model.get_layer(layer_name).output for layer_name in output_layers
     ]
     return tf.keras.Model(inputs=base_model.input, outputs=layers)
 
@@ -47,33 +52,26 @@ class DeepDream(tf.Module):
     )
     def __call__(self, img, steps, step_size) -> tf.Tensor:
         for _ in range(steps):
-            img = self._step(img, step_size)
+            # Shift/offset image by random jitter
+            x_shift, y_shift = np.random.randint(-IMG_JITTER, IMG_JITTER + 1, 2)
+            img = tf.roll(tf.roll(img, x_shift, axis=1), y_shift, axis=0)
+
+            loss = tf.constant(0.0)
+            with tf.GradientTape() as tape:
+                tape.watch(img)
+                loss = activation_loss(img, self.model)
+
+            gradients = tape.gradient(loss, img)
+            # Normalize gradient steps
+            gradients /= tf.math.reduce_std(gradients) + 1e-8
+
+            img = img + gradients * step_size
+            img = tf.clip_by_value(img, -1, 1)
+
+            # Reverse image shift
+            img = tf.roll(tf.roll(img, -x_shift, axis=1), -y_shift, axis=0)
+
         return img
-
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=[None, None, 3], dtype=tf.float32),
-            tf.TensorSpec(shape=[], dtype=tf.float32),
-        )
-    )
-    def _step(self, img, step_size) -> tf.Tensor:
-        # Shift/offset image by random jitter
-        x_shift, y_shift = np.random.randint(-IMG_JITTER, IMG_JITTER + 1, 2)
-        img = tf.roll(tf.roll(img, x_shift, axis=1), y_shift, axis=0)
-
-        loss = tf.constant(0.0)
-        with tf.GradientTape() as tape:
-            tape.watch(img)
-            loss = activation_loss(img, self.model)
-
-        gradients = tape.gradient(loss, img)
-        # Normalize gradient steps
-        gradients /= tf.math.reduce_std(gradients) + 1e-8
-
-        img = img + gradients * step_size
-        # Reverse image shift
-        img = tf.roll(tf.roll(img, -x_shift, axis=1), -y_shift, axis=0)
-        return tf.clip_by_value(img, -1, 1)
 
 
 def get_random_image(shape: Tuple[int, int]) -> Image:
@@ -106,9 +104,9 @@ def deprocess_image(img: tf.Tensor) -> Image:
 
 
 def dream(
-    image_filepath: str, octaves: int, octave_scale: float, steps: int, step_size: float
+    image_filepath: str, output_layers: List[str], octaves: int, octave_scale: float, steps: int, step_size: float
 ) -> Image:
-    model = get_deep_dream_model()
+    model = get_deep_dream_model(output_layers)
     dreamer = DeepDream(model)
 
     input_img = get_image(image_filepath)
@@ -171,8 +169,15 @@ if __name__ == "__main__":
         default=0.01,
         help="Value to scale each step change by during image generation.",
     )
+    parser.add_argument(
+        "--output-layers",
+        type=str,
+        nargs="+",
+        default=["mixed3", "mixed5"],
+        help="The names of layers in the InceptionV3 model to use as output layers.",
+    )
     args = parser.parse_args()
     output_img = dream(
-        args.image_filepath, args.octaves, args.octave_scale, args.steps, args.step_size
+        args.image_filepath, args.output_layers, args.octaves, args.octave_scale, args.steps, args.step_size,
     )
     output_img.save(args.output_filepath)
