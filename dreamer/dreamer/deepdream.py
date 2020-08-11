@@ -14,14 +14,14 @@ VALID_OUTPUT_LAYERS = frozenset(f"mixed{i}" for i in range(11))
 
 def get_deep_dream_model(output_layers: List[str]) -> tf.keras.Model:
     if not all(l in VALID_OUTPUT_LAYERS for l in output_layers):
-        raise ValueError(f"Valid output layers for InceptionV3 are {VALID_OUTPUT_LAYERS}")
+        raise ValueError(
+            f"Valid output layers for InceptionV3 are {VALID_OUTPUT_LAYERS}"
+        )
 
     base_model = tf.keras.applications.InceptionV3(
         include_top=False, weights="imagenet"
     )
-    layers = [
-        base_model.get_layer(layer_name).output for layer_name in output_layers
-    ]
+    layers = [base_model.get_layer(layer_name).output for layer_name in output_layers]
     return tf.keras.Model(inputs=base_model.input, outputs=layers)
 
 
@@ -104,7 +104,12 @@ def deprocess_image(img: tf.Tensor) -> Image:
 
 
 def dream(
-    image_filepath: str, output_layers: List[str], octaves: int, octave_scale: float, steps: int, step_size: float
+    image_filepath: str,
+    output_layers: List[str],
+    octaves: int,
+    octave_scale: float,
+    steps: int,
+    step_size: float,
 ) -> Image:
     model = get_deep_dream_model(output_layers)
     dreamer = DeepDream(model)
@@ -178,6 +183,11 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     output_img = dream(
-        args.image_filepath, args.output_layers, args.octaves, args.octave_scale, args.steps, args.step_size,
+        args.image_filepath,
+        args.output_layers,
+        args.octaves,
+        args.octave_scale,
+        args.steps,
+        args.step_size,
     )
     output_img.save(args.output_filepath)
