@@ -38,6 +38,9 @@ I followed the [TensorFlow DeepDream tutorial](https://www.tensorflow.org/tutori
                             Value to scale each step change by during image generation.
       --output-layers OUTPUT_LAYERS [OUTPUT_LAYERS ...]
                             The names of layers in the InceptionV3 model to use as output layers.
+      --tile-size TILE_SIZE
+                            Size of image tiles, in pixels. Each image will be broken into tiles and each tile passed to the model
+                            separately.
     
 ### Octaves
 Applying gradient ascent to the input image at different scales or 'octaves' allows DeepDream to generate images that feature patterns at different levels of granularity. The TensorFlow tutorial explains octaves with the following:

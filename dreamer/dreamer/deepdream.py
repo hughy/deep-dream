@@ -8,7 +8,7 @@ from PIL import Image
 import numpy as np
 import tensorflow as tf
 
-IMG_JITTER = 32
+IMG_JITTER = 128
 VALID_OUTPUT_LAYERS = frozenset(f"mixed{i}" for i in range(11))
 
 
@@ -48,23 +48,37 @@ class DeepDream(tf.Module):
             tf.TensorSpec(shape=[None, None, 3], dtype=tf.float32),
             tf.TensorSpec(shape=[], dtype=tf.int32),
             tf.TensorSpec(shape=[], dtype=tf.float32),
+            tf.TensorSpec(shape=[], dtype=tf.int32),
         )
     )
-    def __call__(self, img, steps, step_size) -> tf.Tensor:
+    def __call__(self, img, steps, step_size, tile_size) -> tf.Tensor:
+        img_shape = tf.shape(img)
+        width = img_shape[0]
+        height = img_shape[1]
+        tile_xs = tf.range(0, width, tile_size)
+        tile_ys = tf.range(0, height, tile_size)
+
         for _ in range(steps):
+            gradients = tf.zeros_like(img)
+
             # Shift/offset image by random jitter
             x_shift, y_shift = np.random.randint(-IMG_JITTER, IMG_JITTER + 1, 2)
             img = tf.roll(tf.roll(img, x_shift, axis=1), y_shift, axis=0)
 
-            loss = tf.constant(0.0)
-            with tf.GradientTape() as tape:
-                tape.watch(img)
-                loss = activation_loss(img, self.model)
+            # Iterate over all image tiles for each step
+            for x in tile_xs:
+                for y in tile_ys:
+                    with tf.GradientTape() as tape:
+                        tape.watch(img)
+                        img_tile = img[
+                            x : tf.math.minimum(width, x + tile_size),
+                            y : tf.math.minimum(height, y + tile_size),
+                        ]
+                        loss = activation_loss(img_tile, self.model)
+                    gradients += tape.gradient(loss, img)
 
-            gradients = tape.gradient(loss, img)
             # Normalize gradient steps
             gradients /= tf.math.reduce_std(gradients) + 1e-8
-
             img = img + gradients * step_size
             img = tf.clip_by_value(img, -1, 1)
 
@@ -104,17 +118,17 @@ def deprocess_image(img: tf.Tensor) -> Image:
 
 
 def dream(
-    image_filepath: str,
+    input_img: Image,
     output_layers: List[str],
     octaves: int,
     octave_scale: float,
     steps: int,
     step_size: float,
+    tile_size: int,
 ) -> Image:
     model = get_deep_dream_model(output_layers)
     dreamer = DeepDream(model)
 
-    input_img = get_image(image_filepath)
     img = preprocess_image(input_img)
     img_shape = tf.shape(img)[:-1]
     img_shape_float = tf.cast(img_shape, tf.float32)
@@ -122,7 +136,9 @@ def dream(
     for i in octave_range:
         octave_shape = tf.cast(img_shape_float * (octave_scale ** i), tf.int32)
         img = tf.image.resize(img, octave_shape).numpy()
-        img = dreamer(img, tf.constant(steps), tf.constant(step_size))
+        img = dreamer(
+            img, tf.constant(steps), tf.constant(step_size), tf.constant(tile_size)
+        )
 
     # Resize to original preprocessed image shape
     img = tf.image.resize(img, img_shape)
@@ -181,13 +197,21 @@ if __name__ == "__main__":
         default=["mixed3", "mixed5"],
         help="The names of layers in the InceptionV3 model to use as output layers.",
     )
+    parser.add_argument(
+        "--tile-size",
+        type=int,
+        default=256,
+        help="Size of image tiles, in pixels. Each image will be broken into tiles and each tile passed to the model separately.",
+    )
     args = parser.parse_args()
+    input_img = get_image(args.image_filepath)
     output_img = dream(
-        args.image_filepath,
+        input_img,
         args.output_layers,
         args.octaves,
         args.octave_scale,
         args.steps,
         args.step_size,
+        args.tile_size,
     )
     output_img.save(args.output_filepath)
