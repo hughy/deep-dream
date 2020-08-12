@@ -68,11 +68,14 @@ class DeepDream(tf.Module):
             # Iterate over all image tiles for each step
             for x in tile_xs:
                 for y in tile_ys:
+                    # Skip any tiles that may be too small
+                    if x + tile_size > width or y + tile_size > height:
+                        continue
                     with tf.GradientTape() as tape:
                         tape.watch(img)
                         img_tile = img[
-                            x : tf.math.minimum(width, x + tile_size),
-                            y : tf.math.minimum(height, y + tile_size),
+                            x : x + tile_size,
+                            y : y + tile_size,
                         ]
                         loss = activation_loss(img_tile, self.model)
                     gradients += tape.gradient(loss, img)
@@ -102,7 +105,7 @@ def get_image(image_filepath: str) -> Image:
     return Image.open(image_filepath)
 
 
-def preprocess_image(input_img: Image, max_size: int = 512) -> tf.Tensor:
+def preprocess_image(input_img: Image, max_size: int = 1024) -> tf.Tensor:
     input_img.thumbnail((max_size, max_size))
     img_array = np.array(input_img)
     img_array = tf.keras.applications.inception_v3.preprocess_input(img_array)
