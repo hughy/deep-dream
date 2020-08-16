@@ -3,12 +3,12 @@ DeepDream was an experiment that Google engineer Alexander Mordvintsev implement
 ## Examples
 
 <div style="display: inline">
-    <img src="images/cat.jpg" width="256" />
-    <img src="images/dream.png" width="256" />
+    <img src="deepdream/images/cat.jpg" width="256" />
+    <img src="deepdream/images/dream.png" width="256" />
 </div>
 <div style="display: inline">
-    <img src="images/half_dome.jpg" width="256" />
-    <img src="images/half_dome_dream.png" width="256" />
+    <img src="deepdream/images/half_dome.jpg" width="256" />
+    <img src="deepdream/images/half_dome_dream.png" width="256" />
 </div>
 
 ## Implementation
