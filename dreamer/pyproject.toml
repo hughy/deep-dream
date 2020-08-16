@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "dreamer"
 version = "0.1.0"
-description = ""
+description = "TensorFlow implementation of DeepDream"
 authors = ["Hugh Cunningham <hugh.e.cunningham@gmail.com>"]
 
 [tool.poetry.dependencies]
