@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "dreamer"
+name = "deepdream"
 version = "0.1.0"
 description = "TensorFlow implementation of DeepDream"
 authors = ["Hugh Cunningham <hugh.e.cunningham@gmail.com>"]

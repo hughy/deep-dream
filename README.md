@@ -17,7 +17,7 @@ I followed the [TensorFlow DeepDream tutorial](https://www.tensorflow.org/tutori
 
 ### Command-line options
 
-    poetry run python -m dreamer.deepdream --help                                
+    poetry run python -m deepdream.deepdream --help                                
     usage: deepdream.py [-h] [-i IMAGE_FILEPATH] [-o OUTPUT_FILEPATH] [--octaves OCTAVES] [--octave-scale OCTAVE_SCALE]
                         [--steps STEPS] [--step-size STEP_SIZE] [--output-layers OUTPUT_LAYERS [OUTPUT_LAYERS ...]]
     
